@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#6c63ff">
+<title>مكتبتي التعليمية</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f6f7fb;color:#20233a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial}
+header{background:linear-gradient(135deg,#6c63ff,#8d86ff);color:#fff;padding:22px 16px;border-radius:0 0 28px 28px}
+.brand{font-weight:800;font-size:21px}.sub{font-size:12px;opacity:.9;margin-top:4px}
+.search{margin-top:16px;background:#fff;border-radius:15px;padding:12px;color:#333}.search input{border:0;outline:0;width:90%;font-size:15px}
+main{padding:18px 15px 95px;max-width:900px;margin:auto}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+.grade,.work{background:#fff;border:1px solid #e8e9f1;border-radius:18px;box-shadow:0 3px 12px #2221}
+.grade{padding:16px;min-height:95px}.grade b{display:block;font-size:16px;margin-bottom:8px}
+.muted{color:#74798c;font-size:12px}.add{position:fixed;bottom:18px;left:18px;right:18px;max-width:864px;margin:auto;background:#6c63ff;color:#fff;border:0;border-radius:17px;padding:15px;font-size:16px;font-weight:800}
+.cards{display:grid;gap:12px}.thumb{width:100%;height:180px;object-fit:contain;background:#eee}.workbody{padding:12px}
+.actions{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}.btn{border:1px solid #e8e9f1;background:#fff;border-radius:10px;padding:8px 10px}
+.modal{display:none;position:fixed;inset:0;background:#0008;align-items:flex-end;z-index:5}.modal.show{display:flex}
+.sheet{background:#fff;width:100%;border-radius:25px 25px 0 0;padding:20px;max-height:92vh;overflow:auto}
+.field{margin:10px 0}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}
+.field input,.field select{width:100%;padding:11px;border:1px solid #e8e9f1;border-radius:11px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.save,.close{width:100%;border:0;padding:13px;border-radius:12px;font-weight:800}.save{background:#6c63ff;color:#fff}.close{margin-top:8px;background:#eee}
+.empty{text-align:center;color:#74798c;padding:30px}
+
+.dossier{background:#fff;border:1px solid #e8e9f1;border-radius:18px;padding:14px;box-shadow:0 3px 12px #2221}
+.dossier b{font-size:16px}.dossier .actions{margin-top:10px}
+</style>
+</head>
+<body>
+<header><div class="brand">📚 مكتبتي التعليمية</div><div class="sub">Teacher: Rawan Sayed Ahmad</div>
+<div class="search">🔎 <input id="q" placeholder="ابحثي عن ورقة، وحدة، مادة..." oninput="render()"></div></header>
+<main id="app"></main><button class="add" onclick="openModal()">＋ إضافة ورقة عمل</button>
+
+
+<section id="dossierSection" style="margin-top:28px">
+<h2>🗂️ دوسيات المواد</h2>
+<div style="background:#fff;border:1px solid #e8e9f1;border-radius:18px;padding:15px;box-shadow:0 3px 12px #2221;margin-bottom:14px">
+<div class="row">
+<div class="field"><label>اسم الدوسية</label><input id="dName" placeholder="مثال: دوسية English"></div>
+<div class="field"><label>الصف</label><select id="dGrade"></select></div>
+</div>
+<div class="field"><label>المادة</label><input id="dSubject" placeholder="English / رياضيات / علوم"></div>
+<div class="field"><label>ملف الدوسية</label><input id="dFile" type="file" accept="application/pdf,image/*"></div>
+<button class="save" onclick="saveDossier()">📥 حفظ الدوسية</button>
+</div>
+<div id="dossierList" class="cards"></div>
+</section>
+<div class="modal" id="modal"><div class="sheet"><h2>➕ إضافة ورقة</h2>
+<div class="field"><label>عنوان الورقة</label><input id="title" placeholder="مثال: مراجعة الحروف"></div>
+<div class="row"><div class="field"><label>الصف</label><select id="grade"></select></div>
+<div class="field"><label>المادة</label><input id="subject" placeholder="English"></div></div>
+<div class="row"><div class="field"><label>الوحدة / الدرس</label><input id="unit" placeholder="Unit 1"></div>
+<div class="field"><label>النوع</label><select id="type"><option>Worksheet</option><option>Test</option><option>Activity</option><option>Revision</option></select></div></div>
+<div class="field"><label>الصورة أو PDF</label><input id="file" type="file" accept="image/*,application/pdf"></div>
+<button class="save" onclick="save()">حفظ الورقة</button><button class="close" onclick="closeModal()">إلغاء</button>
+</div></div>
+
+
+<script>
+const names=["الأول","الثاني","الثالث","الرابع","الخامس","السادس","السابع","الثامن","التاسع","العاشر","الحادي عشر","الثاني عشر"];
+const DB_NAME="RawanEducationalLibrary", DB_VERSION=1;
+let db=null, works=[], dossiers=[], sel=null;
+
+const gn=g=>"الصف "+names[g-1];
+function esc(s){return String(s||"").replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]))}
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=()=>{const d=req.result;
+      if(!d.objectStoreNames.contains("works")) d.createObjectStore("works",{keyPath:"id"});
+      if(!d.objectStoreNames.contains("dossiers")) d.createObjectStore("dossiers",{keyPath:"id"});
+    };
+    req.onsuccess=()=>{db=req.result;resolve(db)};
+    req.onerror=()=>reject(req.error);
+  });
+}
+function tx(store,mode="readonly"){return db.transaction(store,mode).objectStore(store)}
+function getAll(store){return new Promise((res,rej)=>{let r=tx(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+function put(store,obj){return new Promise((res,rej)=>{let r=tx(store,"readwrite").put(obj);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+function remove(store,id){return new Promise((res,rej)=>{let r=tx(store,"readwrite").delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+
+async function migrateOldData(){
+  // One-time migration from the old localStorage version.
+  try{
+    const oldW=JSON.parse(localStorage.getItem("rawanWorks")||"[]");
+    for(const w of oldW){
+      if(w.data){
+        const blob=await (await fetch(w.data)).blob();
+        await put("works",{id:w.id,title:w.title,grade:w.grade,subject:w.subject,unit:w.unit,type:w.type,blob,name:w.name||"worksheet"});
+      }
+    }
+    const oldD=JSON.parse(localStorage.getItem("rawanDossiers")||"[]");
+    for(const d of oldD){
+      if(d.data){
+        const blob=await (await fetch(d.data)).blob();
+        await put("dossiers",{id:d.id,name:d.name,subject:d.subject,grade:d.grade,type:d.type,blob});
+      }
+    }
+    if(oldW.length||oldD.length){
+      localStorage.setItem("rawanMigratedV2","1");
+      localStorage.removeItem("rawanWorks");
+      localStorage.removeItem("rawanDossiers");
+    }
+  }catch(e){ console.warn("Migration skipped",e); }
+}
+
+async function init(){
+  try{
+    await openDB();
+    if(!localStorage.getItem("rawanMigratedV2")) await migrateOldData();
+    works=await getAll("works"); dossiers=await getAll("dossiers");
+    render(); renderDossiers();
+  }catch(e){
+    alert("تعذر تشغيل التخزين المحلي. أغلقي الصفحة وافتحي التطبيق مرة ثانية.");
+    console.error(e);
+  }
+}
+
+function render(){
+  let qv=(document.getElementById("q")?.value||"").toLowerCase();
+  let a=works.filter(w=>(sel?+w.grade===sel:true)&&Object.values(w).filter(x=>typeof x!=="object").join(" ").toLowerCase().includes(qv));
+  let app=document.getElementById("app");
+  if(sel||qv){
+    app.innerHTML='<button class="btn" onclick="sel=null;document.getElementById(\'q\').value=\'\';render()">← كل الصفوف</button><h2>'+ (qv?"نتائج البحث":gn(sel))+'</h2>'+(a.length?a.map(card).join(""):'<div class="empty">لا توجد أوراق بعد 🌷</div>');
+    return;
+  }
+  app.innerHTML='<h2>📚 الصفوف</h2><div class="grid">'+names.map((n,i)=>'<div class="grade" onclick="sel='+(i+1)+';render()"><b>📘 '+gn(i+1)+'</b><span class="muted">'+works.filter(w=>+w.grade===i+1).length+' ورقة</span></div>').join("")+'</div><h2 style="margin-top:25px">🕘 آخر الأوراق</h2>'+(works.slice().sort((a,b)=>b.id-a.id).slice(0,4).map(card).join("")||'<div class="empty">مكتبتك فارغة ✨</div>');
+}
+function card(w){
+  let isImg=(w.type||"").startsWith("image/");
+  let im=isImg&&w.blob?'<img class="thumb" src="'+URL.createObjectURL(w.blob)+'">':'<div class="thumb" style="display:grid;place-items:center;font-size:50px">📄</div>';
+  return '<div class="work">'+im+'<div class="workbody"><b>'+esc(w.title)+'</b><div class="muted">'+gn(w.grade)+' • '+esc(w.subject||"بدون مادة")+' • '+esc(w.unit||"بدون وحدة")+' • '+esc(w.typeLabel||"Worksheet")+'</div><div class="actions"><button class="btn" onclick="openW(\''+w.id+'\')">👁 فتح</button><button class="btn" onclick="del(\''+w.id+'\')">🗑 حذف</button></div></div></div>';
+}
+async function openW(id){
+  let w=works.find(x=>x.id==id); if(!w||!w.blob)return;
+  let url=URL.createObjectURL(w.blob);
+  window.open(url,"_blank");
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+async function del(id){if(confirm("حذف الورقة؟")){await remove("works",Number(id));works=await getAll("works");render()}}
+function openModal(){document.getElementById("grade").innerHTML=names.map((n,i)=>'<option value="'+(i+1)+'">'+gn(i+1)+'</option>').join("");document.getElementById("modal").classList.add("show")}
+function closeModal(){document.getElementById("modal").classList.remove("show")}
+async function save(){
+  let f=document.getElementById("file").files[0];
+  if(!document.getElementById("title").value||!f)return alert("اكتبي العنوان واختاري الورقة.");
+  try{
+    await put("works",{id:Date.now(),title:document.getElementById("title").value,grade:document.getElementById("grade").value,subject:document.getElementById("subject").value,unit:document.getElementById("unit").value,type:f.type,typeLabel:document.getElementById("type").value,blob:f,name:f.name});
+    works=await getAll("works"); closeModal(); render();
+    document.getElementById("title").value="";document.getElementById("subject").value="";document.getElementById("unit").value="";document.getElementById("file").value="";
+  }catch(e){alert("لم يتم الحفظ. تأكدي أن مساحة الهاتف متاحة.");}
+}
+
+function fillDossierGrades(){const s=document.getElementById("dGrade");if(s)s.innerHTML=names.map((n,i)=>'<option value="'+(i+1)+'">'+gn(i+1)+'</option>').join("")}
+async function saveDossier(){
+  const name=document.getElementById("dName").value.trim(),subject=document.getElementById("dSubject").value.trim(),grade=document.getElementById("dGrade").value,f=document.getElementById("dFile").files[0];
+  if(!name||!subject||!f){alert("اكتبي اسم الدوسية والمادة واختاري الملف.");return}
+  try{
+    await put("dossiers",{id:Date.now(),name,subject,grade,blob:f,type:f.type,fileName:f.name});
+    dossiers=await getAll("dossiers");
+    document.getElementById("dName").value="";document.getElementById("dSubject").value="";document.getElementById("dFile").value="";
+    renderDossiers();
+  }catch(e){alert("لم يتم حفظ الدوسية. تأكدي من وجود مساحة كافية في الهاتف.");}
+}
+function renderDossiers(){
+  const box=document.getElementById("dossierList"); if(!box)return;
+  if(!dossiers.length){box.innerHTML='<div class="empty">لا توجد دوسيات محفوظة بعد 📚</div>';return}
+  box.innerHTML=dossiers.slice().sort((a,b)=>b.id-a.id).map(d=>`
+  <div class="dossier"><b>📚 ${esc(d.name)}</b><div class="muted">${gn(d.grade)} • ${esc(d.subject)}</div>
+  <div class="actions"><button class="btn" onclick="openDossier('${d.id}')">👁 فتح</button><button class="btn" onclick="deleteDossier('${d.id}')">🗑 حذف</button></div></div>`).join("");
+}
+async function openDossier(id){
+  const d=dossiers.find(x=>x.id==id);if(!d||!d.blob)return;
+  const url=URL.createObjectURL(d.blob);window.open(url,"_blank");setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+async function deleteDossier(id){if(confirm("حذف هذه الدوسية؟")){await remove("dossiers",Number(id));dossiers=await getAll("dossiers");renderDossiers()}}
+
+fillDossierGrades();
+init();
+</script>
+
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));}
+</script>
+</body></html>

@@ -1,0 +1,12 @@
+{
+  "name": "مكتبتي التعليمية – Rawan Sayed Ahmad",
+  "short_name": "مكتبتي التعليمية",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#6c63ff",
+  "background_color": "#f7f7fb",
+  "description": "مكتبة تعليمية شخصية للمعلمة Rawan Sayed Ahmad، تعمل أوفلاين."
+}
